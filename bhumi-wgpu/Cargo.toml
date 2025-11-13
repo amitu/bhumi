@@ -10,5 +10,6 @@ rust-version.workspace = true
 [dependencies]
 winit.workspace = true
 pixels.workspace = true
-glam.workspace = true
-rapier3d.workspace = true
+bhumi = { path = "../bhumi" }
+env_logger = "0.10"
+log = "0.4"
