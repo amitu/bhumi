@@ -126,11 +126,56 @@ impl PhysicsWorld {
         }
     }
 
-    /// Stop drone motion without changing position
+    /// Stop drone - reset entire physics world but keep drone position
     pub fn stop_drone(&mut self) {
-        if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
-            rb.set_linvel(vector![0.0, 0.0, 0.0], true);       // stop all velocity
-            rb.set_angvel(vector![0.0, 0.0, 0.0], true);       // stop rotation
+        // Get current drone position
+        let current_pos = if let Some(rb) = self.bodies.get(self.drone_handle) {
+            *rb.translation()
+        } else {
+            vector![0.0, 0.0, -3.0]
+        };
+
+        // Recreate entire physics world from scratch
+        *self = Self::new_with_drone_at(current_pos);
+    }
+
+    /// Create new physics world with drone at specific position
+    fn new_with_drone_at(drone_pos: nalgebra::Vector3<f32>) -> Self {
+        let gravity = Vector::new(0.0, 0.0, 0.0); // zero gravity for free exploration
+        let mut bodies = RigidBodySet::new();
+        let mut colliders = ColliderSet::new();
+
+        // Create drone at specified position with zero velocity
+        let mut rb = RigidBodyBuilder::dynamic()
+            .translation(drone_pos)
+            .linvel(vector![0.0, 0.0, 0.0]) // no velocity - completely stopped
+            .build();
+        // set high damping for responsive control and easy stopping
+        rb.set_linear_damping(0.9);
+        rb.set_angular_damping(0.9);
+        let drone_handle = bodies.insert(rb);
+        let drone_collider = ColliderBuilder::ball(0.35)
+            .restitution(0.3)
+            .friction(0.7)
+            .build();
+        colliders.insert_with_parent(drone_collider, drone_handle, &mut bodies);
+
+        // Simple cube made of wireframe (no solid colliders for now)
+        // Cube size: 2x2x2 meters, centered at origin
+
+        Self {
+            gravity,
+            integration_parameters: IntegrationParameters { dt: 1.0 / 60.0, ..Default::default() },
+            pipeline: PhysicsPipeline::new(),
+            island_manager: IslandManager::new(),
+            broad_phase: BroadPhaseBvh::new(),
+            narrow_phase: NarrowPhase::new(),
+            bodies,
+            colliders,
+            impulse_joints: ImpulseJointSet::new(),
+            multibody_joints: MultibodyJointSet::new(),
+            ccd_solver: CCDSolver::new(),
+            drone_handle,
         }
     }
 }

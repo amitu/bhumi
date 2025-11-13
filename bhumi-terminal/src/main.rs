@@ -1,13 +1,14 @@
 use crossterm::{
     event::{self, Event, KeyCode},
     terminal,
+    cursor, execute,
 };
 use std::env;
 use std::io::{Result, Write};
 use std::time::Duration;
 use std::fs::OpenOptions;
 
-use bhumi::{PixelRenderer, PixelBuffer, Renderer, InputEvent, CameraMode};
+use bhumi::{PixelRenderer, PixelBuffer, Renderer, InputEvent};
 use image::{RgbaImage, DynamicImage};
 
 /// Terminal renderer using viuer for high-quality image display
@@ -17,6 +18,14 @@ struct TerminalRenderer {
     start_time: std::time::Instant,
     log_file: std::fs::File,
     frame_count: u32,
+    render_mode: ViuerMode,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ViuerMode {
+    Auto,        // Let viuer auto-detect best protocol  
+    Block,       // Force block characters with truecolor
+    LowRes,      // Smaller image for different look
 }
 
 impl PixelRenderer for TerminalRenderer {
@@ -34,6 +43,7 @@ impl PixelRenderer for TerminalRenderer {
             start_time: std::time::Instant::now(),
             log_file,
             frame_count: 0,
+            render_mode: ViuerMode::Auto,
         }
     }
 
@@ -75,6 +85,15 @@ impl PixelRenderer for TerminalRenderer {
                             KeyCode::Char('d') | KeyCode::Right => events.push(InputEvent::ThrustRight),
                             KeyCode::Char(' ') => events.push(InputEvent::ThrustUp),
                             KeyCode::Char('c') => events.push(InputEvent::ThrustDown),
+                            KeyCode::Tab => {
+                                // Toggle viuer rendering mode
+                                self.render_mode = match self.render_mode {
+                                    ViuerMode::Auto => ViuerMode::Block,
+                                    ViuerMode::Block => ViuerMode::LowRes,
+                                    ViuerMode::LowRes => ViuerMode::Auto,
+                                };
+                                self.log(&format!("Switched to render mode: {:?}", self.render_mode));
+                            },
                             KeyCode::Char('0') => events.push(InputEvent::Reset),
                             KeyCode::Char('9') => events.push(InputEvent::Stop),
                             _ => {}
@@ -107,12 +126,47 @@ impl TerminalRenderer {
 
     /// Use viuer to display pixel buffer as high-quality terminal image
     fn draw_pixel_buffer_with_viuer(&self, buffer: &PixelBuffer) -> Result<()> {
-        // Configure viuer for our terminal size
-        let config = viuer::Config {
-            width: Some(80),     // Terminal width in characters
-            height: Some(30),    // Terminal height in characters
-            absolute_offset: false,
-            ..Default::default()
+        // Get terminal size for centering
+        let (term_w, term_h) = if let Ok(size) = terminal::size() {
+            size
+        } else {
+            (80, 30) // fallback
+        };
+
+        // Fixed dimensions: 80×30 characters for 320×240 pixel buffer
+        let image_w = 80;
+        let image_h = 30;
+        let center_x = if term_w > image_w { (term_w - image_w) / 2 } else { 0 };
+        let center_y = if term_h > image_h { (term_h - image_h) / 2 } else { 0 };
+
+        // Configure viuer based on selected mode
+        let config = match self.render_mode {
+            ViuerMode::Auto => viuer::Config {
+                width: Some(image_w as u32),
+                height: Some(image_h as u32),
+                x: center_x,
+                y: center_y as i16,
+                absolute_offset: true,
+                ..Default::default()
+            },
+            ViuerMode::Block => viuer::Config {
+                width: Some(image_w as u32),
+                height: Some(image_h as u32),
+                x: center_x,
+                y: center_y as i16,
+                absolute_offset: true,
+                truecolor: true,
+                ..Default::default()
+            },
+            ViuerMode::LowRes => viuer::Config {
+                width: Some(40),  // Half size for dramatically different look
+                height: Some(15),
+                x: center_x + 20, // Center the smaller image
+                y: center_y as i16 + 7,
+                absolute_offset: true,
+                truecolor: false, // Lower color depth for retro feel
+                ..Default::default()
+            },
         };
 
         // Convert our pixel buffer to format that image crate expects
@@ -137,6 +191,177 @@ impl TerminalRenderer {
 
         Ok(())
     }
+}
+
+/// Interactive visual test mode - shows viuer modes one at a time
+fn run_visual_test() -> Result<()> {
+    terminal::enable_raw_mode()?;
+    
+    // Create a simple test renderer with cube  
+    let mut renderer = Renderer::new();
+    renderer.render(); // Generate the first frame
+    
+    // Track which modes work for summary
+    let mut mode_results: Vec<(String, bool, String)> = Vec::new();
+    
+    // Convert pixel buffer once
+    let rgba_bytes: Vec<u8> = renderer.buffer.pixels.iter()
+        .flat_map(|pixel| [pixel[0], pixel[1], pixel[2], pixel[3]])
+        .collect();
+    let rgba_image = RgbaImage::from_raw(renderer.buffer.width, renderer.buffer.height, rgba_bytes)
+        .expect("Failed to create image");
+    let dynamic_image = DynamicImage::ImageRgba8(rgba_image);
+
+    // Get terminal size for centering
+    let (term_w, term_h) = terminal::size()?;
+    let center_x = if term_w > 80 { (term_w - 80) / 2 } else { 0 };
+    let center_y = if term_h > 30 { (term_h - 30) / 2 } else { 0 };
+    
+    // Define ALL viuer protocols with sixel feature enabled
+    let test_configs = vec![
+        ("🤖 Auto Detection (Let viuer choose)", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16, 
+            ..Default::default()
+        }),
+        ("🔥 Kitty Graphics Protocol", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: true, use_iterm: false, use_sixel: false, truecolor: true,
+            ..Default::default()
+        }),
+        ("🍎 iTerm2 Graphics Protocol", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: true, use_sixel: false, truecolor: true,
+            ..Default::default()
+        }),
+        ("📺 Sixel Graphics Protocol", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: false, use_sixel: true, truecolor: true,
+            ..Default::default()
+        }),
+        ("🧱 Block + Truecolor", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: false, use_sixel: false, truecolor: true,
+            ..Default::default()
+        }),
+        ("🧱 Block + Transparent", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: false, use_sixel: false, transparent: true, truecolor: true,
+            ..Default::default()
+        }),
+        ("🎨 Block + Low Color", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: false, use_sixel: false, truecolor: false,
+            ..Default::default()
+        }),
+        ("🔄 Block + Cursor Restore", viuer::Config {
+            width: Some(80), height: Some(30), x: center_x, y: center_y as i16,
+            use_kitty: false, use_iterm: false, use_sixel: false, restore_cursor: true, truecolor: true,
+            ..Default::default()
+        }),
+    ];
+
+    let mut current_mode = 0;
+    
+    loop {
+        // Clear screen
+        print!("\x1b[2J\x1b[H");
+        
+        let (name, config) = &test_configs[current_mode];
+        
+        // Show ONE LINE at top, then render image below
+        let detected = if name.contains("Auto") {
+            let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
+            if term_program.contains("Apple_Terminal") {
+                "Block Characters"
+            } else if term_program.contains("iTerm") {
+                "iTerm2 Graphics"
+            } else {
+                "Block Characters"
+            }
+        } else {
+            ""
+        };
+        
+        println!("Mode {}/{}: {} {} | ←→ S=summary Q=quit", current_mode + 1, test_configs.len(), name, detected);
+        
+        // Render image below the line
+        match viuer::print(&dynamic_image, config) {
+            Ok((w, h)) => {
+                mode_results.push((name.to_string(), true, format!("{}×{}", w, h)));
+            },
+            Err(e) => {
+                mode_results.push((name.to_string(), false, e.to_string()));
+            }
+        }
+        
+        // Wait for input
+        loop {
+            if let Ok(Event::Key(k)) = event::read() {
+                match k.code {
+                    KeyCode::Right | KeyCode::Char(' ') => {
+                        current_mode = (current_mode + 1) % test_configs.len();
+                        break;
+                    },
+                    KeyCode::Left => {
+                        current_mode = if current_mode == 0 { 
+                            test_configs.len() - 1 
+                        } else { 
+                            current_mode - 1 
+                        };
+                        break;
+                    },
+                    KeyCode::Char('s') | KeyCode::Char('S') => {
+                        // Show summary
+                        print!("\x1b[2J\x1b[H"); // Clear screen and reset cursor
+                        show_summary(&mode_results, &test_configs);
+                        event::read().ok();
+                        break;
+                    },
+                    KeyCode::Char('q') | KeyCode::Esc => {
+                        // Show final summary before exit
+                        print!("\x1b[2J\x1b[H");
+                        show_summary(&mode_results, &test_configs);
+                        execute!(std::io::stdout(), cursor::MoveTo(0, (test_configs.len() + 4) as u16)).ok();
+                        print!("Exiting...");
+                        std::io::stdout().flush().ok();
+                        std::thread::sleep(Duration::from_secs(1));
+                        terminal::disable_raw_mode()?;
+                        return Ok(());
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+/// Show summary of all viuer modes and their support status  
+fn show_summary(results: &[(String, bool, String)], configs: &[(&str, viuer::Config)]) {
+    // Force cursor to position 0,0 using crossterm
+    execute!(std::io::stdout(), cursor::MoveTo(0, 0)).ok();
+    
+    let term_program = std::env::var("TERM_PROGRAM").unwrap_or("Unknown".to_string());
+    let supported_count = results.iter().filter(|(_, supported, _)| *supported).count();
+    let total_count = configs.len();
+    
+    println!("Summary: {}/{} modes work on {}", supported_count, total_count, term_program);
+    
+    for (i, (name, _)) in configs.iter().enumerate() {
+        execute!(std::io::stdout(), cursor::MoveTo(0, (i + 2) as u16)).ok();
+        if let Some((_, supported, _info)) = results.get(i) {
+            if *supported {
+                print!("✅ {}", name);
+            } else {
+                print!("❌ {}", name);
+            }
+        } else {
+            print!("🔄 {}", name);
+        }
+    }
+    
+    execute!(std::io::stdout(), cursor::MoveTo(0, (configs.len() + 3) as u16)).ok();
+    print!("Press any key...");
+    std::io::stdout().flush().ok();
 }
 
 /// Raw mode for debugging
@@ -186,7 +411,10 @@ fn print_raw_grid() -> Result<()> {
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    // Check for --raw flag
+    // Check for special flags
+    if args.contains(&"--visual-test".to_string()) {
+        return run_visual_test();
+    }
     if args.contains(&"--raw".to_string()) {
         return print_raw_grid();
     }
