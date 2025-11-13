@@ -1,5 +1,5 @@
 [workspace]
-members = ["bhumi"]
+members = ["bhumi-wgpu", "bhumi-terminal"]
 resolver = "2"
 
 [workspace.package]
@@ -10,6 +10,7 @@ repository = "https://github.com/amitu/bhumi"
 rust-version = "1.89"
 
 [workspace.dependencies]
+crossterm = "0.29"
 winit = "0.30"
 pixels = "0.15"
 glam = "0.30"

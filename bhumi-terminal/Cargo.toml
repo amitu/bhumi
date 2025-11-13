@@ -1,0 +1,11 @@
+[package]
+name = "bhumi-terminal"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "bhumi ui in terminal"
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crossterm.workspace = true
