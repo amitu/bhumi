@@ -28,12 +28,23 @@ impl Camera {
         }
     }
 
-    /// Update camera based on drone position and current mode
-    pub fn update(&mut self, drone_pos: [f32; 3]) {
+    /// Update camera based on drone position and orientation
+    pub fn update(&mut self, drone_pos: [f32; 3], drone_rotation: [f32; 4]) {
         let drone_point = Point3::new(drone_pos[0], drone_pos[1], drone_pos[2]);
 
-        // Third-person camera: behind and above drone, looking at drone
-        let offset = Vector3::new(-1.5, 1.0, -2.0); // Behind, above, and to the side
+        // Convert quaternion to rotation matrix to get drone's forward direction
+        let quat = nalgebra::UnitQuaternion::new_normalize(nalgebra::Quaternion::new(
+            drone_rotation[3], // w
+            drone_rotation[0], // x  
+            drone_rotation[1], // y
+            drone_rotation[2], // z
+        ));
+        
+        // Get drone's forward direction (after rotation)
+        let forward = quat * Vector3::new(0.0, 0.0, 1.0);
+        
+        // Third-person camera: behind drone based on its orientation
+        let offset = quat * Vector3::new(-1.5, 1.0, -2.0); // Offset rotates with drone
         self.position = drone_point + offset;
         self.target = drone_point; // Look at the drone
     }

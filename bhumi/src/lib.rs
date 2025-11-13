@@ -24,12 +24,23 @@ pub trait PixelRenderer {
 /// Input events from user interaction
 #[derive(Debug, Clone)]
 pub enum InputEvent {
-    ThrustUp,
-    ThrustDown,
-    ThrustLeft,
-    ThrustRight,
-    ThrustForward,
-    ThrustBackward,
+    // Translation (WASD cluster)
+    ThrustForward,   // W - Surge forward
+    ThrustBackward,  // S - Surge backward
+    ThrustLeft,      // A - Sway left
+    ThrustRight,     // D - Sway right
+    ThrustUp,        // SPACE - Heave up
+    ThrustDown,      // C - Heave down
+    
+    // Rotation (IJKL cluster)
+    PitchUp,         // I - Nose up
+    PitchDown,       // K - Nose down
+    YawLeft,         // J - Turn left
+    YawRight,        // L - Turn right
+    RollLeft,        // U - Bank left
+    RollRight,       // O - Bank right
+    
+    // Utility
     CameraMode(CameraMode),
     Reset,
     Stop,

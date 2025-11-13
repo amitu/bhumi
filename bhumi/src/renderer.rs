@@ -8,6 +8,7 @@ pub struct Renderer {
     pub camera: Camera,
     pub buffer: PixelBuffer,
     thrust_force: Vector<f32>,
+    angular_force: Vector<f32>, // For pitch/yaw/roll
 }
 
 impl Renderer {
@@ -18,6 +19,7 @@ impl Renderer {
             camera: Camera::new(),
             buffer: PixelBuffer::new(),
             thrust_force: Vector::new(0.0, 0.0, 0.0),
+            angular_force: Vector::new(0.0, 0.0, 0.0),
         }
     }
 
@@ -26,12 +28,23 @@ impl Renderer {
         // Process input events
         for event in input_events {
             match event {
-                InputEvent::ThrustUp => self.thrust_force.y += 0.5, // Space - thrust up
-                InputEvent::ThrustDown => self.thrust_force.y -= 0.5, // C - thrust down
-                InputEvent::ThrustLeft => self.thrust_force.x -= 0.3, // A/← - thrust left
-                InputEvent::ThrustRight => self.thrust_force.x += 0.3, // D/→ - thrust right
-                InputEvent::ThrustForward => self.thrust_force.z += 0.3, // W/↑ - thrust forward
-                InputEvent::ThrustBackward => self.thrust_force.z -= 0.3, // S/↓ - thrust backward
+                // Translation forces (WASD cluster)
+                InputEvent::ThrustForward => self.thrust_force.z += 0.3,   // W - surge forward
+                InputEvent::ThrustBackward => self.thrust_force.z -= 0.3,  // S - surge backward  
+                InputEvent::ThrustLeft => self.thrust_force.x -= 0.3,      // A - sway left
+                InputEvent::ThrustRight => self.thrust_force.x += 0.3,     // D - sway right
+                InputEvent::ThrustUp => self.thrust_force.y += 0.5,        // SPACE - heave up
+                InputEvent::ThrustDown => self.thrust_force.y -= 0.5,      // C - heave down
+                
+                // Rotational torques (IJKL cluster) - very gentle forces for subtle rotation
+                InputEvent::PitchUp => self.angular_force.x -= 0.05,       // I - pitch nose up
+                InputEvent::PitchDown => self.angular_force.x += 0.05,     // K - pitch nose down
+                InputEvent::YawLeft => self.angular_force.y -= 0.05,       // J - yaw turn left
+                InputEvent::YawRight => self.angular_force.y += 0.05,      // L - yaw turn right
+                InputEvent::RollLeft => self.angular_force.z -= 0.05,      // U - roll bank left
+                InputEvent::RollRight => self.angular_force.z += 0.05,     // O - roll bank right
+                
+                // Utility
                 InputEvent::CameraMode(mode) => self.camera.set_mode(*mode),
                 InputEvent::Reset => self.physics.reset_drone(),
                 InputEvent::Stop => self.physics.stop_drone(),
@@ -39,14 +52,16 @@ impl Renderer {
             }
         }
 
-        // Step physics simulation
-        let drone_pos = self.physics.step(dt, self.thrust_force);
+        // Step physics simulation with both linear and angular forces
+        let drone_pos = self.physics.step_with_torque(dt, self.thrust_force, self.angular_force);
 
-        // Reset thrust force (apply only for this frame)
+        // Reset forces (apply only for this frame)
         self.thrust_force = Vector::new(0.0, 0.0, 0.0);
+        self.angular_force = Vector::new(0.0, 0.0, 0.0);
 
-        // Update camera based on drone position
-        self.camera.update(drone_pos);
+        // Update camera based on drone position and orientation
+        let drone_rotation = self.physics.get_drone_rotation();
+        self.camera.update(drone_pos, drone_rotation);
     }
 
     /// Render current frame to pixel buffer
@@ -66,66 +81,82 @@ impl Renderer {
         self.render_drone(&view_proj);
     }
 
-    /// Render a simple cube made of wireframe lines
+    /// Render infinite grid of cubes
     fn render_room(&mut self, view_proj: &nalgebra::Matrix4<f32>) {
         let cube_color = [255, 255, 255, 255]; // Bright white for visibility
-
-        // Full 3D cube that drone will fly through
+        
+        // Get drone position to center the grid around
+        let drone_pos = self.physics.get_drone_position();
+        let drone_x = drone_pos[0];
+        let drone_y = drone_pos[1]; 
+        let drone_z = drone_pos[2];
+        
+        // Ultra-sparse reference grid - nearest 4 cubes only in each direction
+        let cube_size = 2.0;      // 2x2x2 meter cubes 
+        let cube_spacing = 15.0;  // 15 meter spacing between cubes (even more spread out)
+        let grid_radius = 1;      // Only 3x3x3 total (27 cubes max)
+        
+        // Calculate which sparse grid cell the drone is in
+        let grid_center_x = (drone_x / cube_spacing).round() as i32;
+        let grid_center_y = (drone_y / cube_spacing).round() as i32;
+        let grid_center_z = (drone_z / cube_spacing).round() as i32;
+        
+        // Render sparse cube grid as reference markers
+        for gx in (grid_center_x - grid_radius)..=(grid_center_x + grid_radius) {
+            for gy in (grid_center_y - grid_radius)..=(grid_center_y + grid_radius) {
+                for gz in (grid_center_z - grid_radius)..=(grid_center_z + grid_radius) {
+                    // World position of this reference cube (spaced 10m apart)
+                    let cube_x = gx as f32 * cube_spacing;
+                    let cube_y = gy as f32 * cube_spacing;  
+                    let cube_z = gz as f32 * cube_spacing;
+                    
+                    self.render_cube_at(view_proj, cube_x, cube_y, cube_z, cube_size, cube_color);
+                }
+            }
+        }
+    }
+    
+    /// Render a single cube at given world position
+    fn render_cube_at(&mut self, view_proj: &nalgebra::Matrix4<f32>, center_x: f32, center_y: f32, center_z: f32, size: f32, color: [u8; 4]) {
+        let half_size = size / 2.0;
+        
+        // Cube corners relative to center
         let corners = [
-            // Front face (z = -1) - drone approaches this
-            Point3::new(-1.0, -1.0, -1.0), // 0: front bottom-left
-            Point3::new(1.0, -1.0, -1.0),  // 1: front bottom-right
-            Point3::new(1.0, 1.0, -1.0),   // 2: front top-right
-            Point3::new(-1.0, 1.0, -1.0),  // 3: front top-left
-            // Back face (z = 1) - drone exits through this
-            Point3::new(-1.0, -1.0, 1.0), // 4: back bottom-left
-            Point3::new(1.0, -1.0, 1.0),  // 5: back bottom-right
-            Point3::new(1.0, 1.0, 1.0),   // 6: back top-right
-            Point3::new(-1.0, 1.0, 1.0),  // 7: back top-left
+            // Front face
+            Point3::new(center_x - half_size, center_y - half_size, center_z - half_size), // 0
+            Point3::new(center_x + half_size, center_y - half_size, center_z - half_size), // 1
+            Point3::new(center_x + half_size, center_y + half_size, center_z - half_size), // 2
+            Point3::new(center_x - half_size, center_y + half_size, center_z - half_size), // 3
+            // Back face
+            Point3::new(center_x - half_size, center_y - half_size, center_z + half_size), // 4
+            Point3::new(center_x + half_size, center_y - half_size, center_z + half_size), // 5
+            Point3::new(center_x + half_size, center_y + half_size, center_z + half_size), // 6
+            Point3::new(center_x - half_size, center_y + half_size, center_z + half_size), // 7
         ];
 
-        // Convert corners to screen space - debug what's happening
+        // Convert corners to screen space
         let mut screen_corners = Vec::new();
-        for (i, corner) in corners.iter().enumerate() {
-            if let Some(screen_pos) =
-                world_to_screen(*corner, view_proj, self.buffer.width, self.buffer.height)
-            {
-                let x = screen_pos.0 as u32;
-                let y = screen_pos.1 as u32;
-                screen_corners.push(Some((x, y)));
-                // Mark corner with number for debugging
-                let corner_char = format!("{}", i);
-                self.buffer.set_pixel(x, y, [255, 255, 0, 255]); // Yellow corner marker
+        for corner in corners.iter() {
+            if let Some(screen_pos) = world_to_screen(*corner, view_proj, self.buffer.width, self.buffer.height) {
+                screen_corners.push(Some((screen_pos.0 as u32, screen_pos.1 as u32)));
             } else {
                 screen_corners.push(None);
-                // Corner failed projection - not visible
             }
         }
 
-        // Draw full cube wireframe (12 edges)
+        // Draw cube wireframe edges
         let edges = [
             // Front face
-            (0, 1, cube_color),
-            (1, 2, cube_color),
-            (2, 3, cube_color),
-            (3, 0, cube_color),
-            // Back face
-            (4, 5, cube_color),
-            (5, 6, cube_color),
-            (6, 7, cube_color),
-            (7, 4, cube_color),
+            (0, 1, color), (1, 2, color), (2, 3, color), (3, 0, color),
+            // Back face  
+            (4, 5, color), (5, 6, color), (6, 7, color), (7, 4, color),
             // Connecting edges (front to back)
-            (0, 4, cube_color),
-            (1, 5, cube_color),
-            (2, 6, cube_color),
-            (3, 7, cube_color),
+            (0, 4, color), (1, 5, color), (2, 6, color), (3, 7, color),
         ];
 
-        for (start_idx, end_idx, color) in edges.iter() {
-            if let (Some(start), Some(end)) = (screen_corners[*start_idx], screen_corners[*end_idx])
-            {
-                self.buffer
-                    .draw_line(start.0, start.1, end.0, end.1, *color);
+        for (start_idx, end_idx, edge_color) in edges.iter() {
+            if let (Some(start), Some(end)) = (screen_corners[*start_idx], screen_corners[*end_idx]) {
+                self.buffer.draw_line(start.0, start.1, end.0, end.1, *edge_color);
             }
         }
     }

@@ -85,20 +85,21 @@ impl PixelRenderer for TerminalRenderer {
                                 self.should_exit = true;
                                 events.push(InputEvent::Exit);
                             }
-                            KeyCode::Char('w') | KeyCode::Up => {
-                                events.push(InputEvent::ThrustForward)
-                            }
-                            KeyCode::Char('s') | KeyCode::Down => {
-                                events.push(InputEvent::ThrustBackward)
-                            }
-                            KeyCode::Char('a') | KeyCode::Left => {
-                                events.push(InputEvent::ThrustLeft)
-                            }
-                            KeyCode::Char('d') | KeyCode::Right => {
-                                events.push(InputEvent::ThrustRight)
-                            }
-                            KeyCode::Char(' ') => events.push(InputEvent::ThrustUp),
-                            KeyCode::Char('c') => events.push(InputEvent::ThrustDown),
+                            // Translation controls (WASD cluster - left hand)
+                            KeyCode::Char('w') => events.push(InputEvent::ThrustForward),  // Surge forward
+                            KeyCode::Char('s') => events.push(InputEvent::ThrustBackward), // Surge backward
+                            KeyCode::Char('a') => events.push(InputEvent::ThrustLeft),     // Sway left
+                            KeyCode::Char('d') => events.push(InputEvent::ThrustRight),    // Sway right
+                            KeyCode::Char(' ') => events.push(InputEvent::ThrustUp),       // Heave up
+                            KeyCode::Char('c') => events.push(InputEvent::ThrustDown),     // Heave down
+                            
+                            // Rotation controls (IJKL cluster - right hand)  
+                            KeyCode::Char('i') => events.push(InputEvent::PitchUp),        // Nose up
+                            KeyCode::Char('k') => events.push(InputEvent::PitchDown),      // Nose down
+                            KeyCode::Char('j') => events.push(InputEvent::YawLeft),        // Turn left
+                            KeyCode::Char('l') => events.push(InputEvent::YawRight),       // Turn right
+                            KeyCode::Char('u') => events.push(InputEvent::RollLeft),       // Bank left
+                            KeyCode::Char('o') => events.push(InputEvent::RollRight),      // Bank right
                             KeyCode::Tab => {
                                 // Toggle viuer rendering mode
                                 self.render_mode = match self.render_mode {
@@ -626,24 +627,34 @@ fn main() -> Result<()> {
             break;
         }
 
-        // Log input events
+        // Log input events (especially rotation)
         if !input_events.is_empty() {
-            terminal_renderer.log(&format!("Input events: {:?}", input_events));
+            let has_rotation = input_events.iter().any(|e| matches!(e, 
+                InputEvent::PitchUp | InputEvent::PitchDown | 
+                InputEvent::YawLeft | InputEvent::YawRight |
+                InputEvent::RollLeft | InputEvent::RollRight));
+            
+            if has_rotation {
+                terminal_renderer.log(&format!("🔄 ROTATION INPUT: {:?}", input_events));
+            } else {
+                terminal_renderer.log(&format!("Input events: {:?}", input_events));
+            }
         }
 
         // Update 3D world
         core_renderer.update(dt, &input_events);
         core_renderer.render();
 
-        // Log drone position occasionally
+        // Log drone position and rotation occasionally
         terminal_renderer.frame_count += 1;
         if terminal_renderer.frame_count % 60 == 0 {
             // Every ~2 seconds
             let pos = core_renderer.get_drone_position();
             let vel = core_renderer.get_drone_velocity();
+            let rot = core_renderer.physics.get_drone_rotation();
             terminal_renderer.log(&format!(
-                "Frame {}: Drone pos: x={:.3}, y={:.3}, z={:.3}, vel: x={:.3}, y={:.3}, z={:.3}",
-                terminal_renderer.frame_count, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]
+                "Frame {}: Drone pos: x={:.3}, y={:.3}, z={:.3}, vel: x={:.3}, y={:.3}, z={:.3}, rot: x={:.3}, y={:.3}, z={:.3}, w={:.3}",
+                terminal_renderer.frame_count, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2], rot[0], rot[1], rot[2], rot[3]
             ));
         }
 

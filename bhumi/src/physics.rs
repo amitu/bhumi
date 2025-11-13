@@ -68,11 +68,18 @@ impl PhysicsWorld {
     /// `force_world` is a Vector<f32> in world coords applied to the drone this step (e.g. thrust)
     /// Returns the drone position as [x,y,z]
     pub fn step(&mut self, dt: f32, force_world: Vector<f32>) -> [f32; 3] {
+        self.step_with_torque(dt, force_world, Vector::new(0.0, 0.0, 0.0))
+    }
+
+    /// Step physics with both linear and angular forces
+    pub fn step_with_torque(&mut self, dt: f32, force_world: Vector<f32>, torque_world: Vector<f32>) -> [f32; 3] {
         // set the integration dt to the provided dt
         self.integration_parameters.dt = dt.max(1.0 / 240.0); // clamp small dt
-        // apply force to drone
+        
+        // apply forces and torques to drone
         if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
             rb.add_force(force_world, true);
+            rb.add_torque(torque_world, true);
         }
 
         // step the physics pipeline
@@ -107,6 +114,16 @@ impl PhysicsWorld {
             [t.x, t.y, t.z]
         } else {
             [0.0, 0.0, 0.0]
+        }
+    }
+
+    /// Get drone orientation (rotation) as quaternion
+    pub fn get_drone_rotation(&self) -> [f32; 4] {
+        if let Some(rb) = self.bodies.get(self.drone_handle) {
+            let q = rb.rotation();
+            [q.i, q.j, q.k, q.w] // x,y,z,w quaternion components
+        } else {
+            [0.0, 0.0, 0.0, 1.0] // Identity quaternion
         }
     }
 
