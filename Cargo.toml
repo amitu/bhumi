@@ -1,0 +1,16 @@
+[workspace]
+members = ["bhumi"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Amit Upadhyay <upadhyay@gmail.com>"]
+edition = "2024"
+description = "general purpose 3D operating system"
+repository = "https://github.com/amitu/bhumi"
+rust-version = "1.89"
+
+[workspace.dependencies]
+winit = "0.30"
+pixels = "0.15"
+glam = "0.30"
+rapier3d = "0.30"

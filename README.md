@@ -1,2 +1,3 @@
 # bhumi
-general purpose operating system based in 3D
+
+general purpose 3D operating system

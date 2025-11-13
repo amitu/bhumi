@@ -1,0 +1,14 @@
+[package]
+name = "bhumi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+winit.workspace = true
+pixels.workspace = true
+glam.workspace = true
+rapier3d.workspace = true
