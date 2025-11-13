@@ -8,7 +8,7 @@ use std::env;
 use std::io::{Result, Write, stdout};
 use std::time::Duration;
 
-use bhumi::{PixelRenderer, PixelBuffer, Renderer, InputEvent, CameraMode};
+use bhumi::{PixelRenderer, PixelBuffer, Renderer, InputEvent, CameraMode, RenderMode};
 
 const GRID_W: usize = 80;
 const GRID_H: usize = 30;
@@ -18,6 +18,7 @@ struct TerminalRenderer {
     should_exit: bool,
     show_physics: bool,
     start_time: std::time::Instant,
+    render_mode: RenderMode,
 }
 
 impl PixelRenderer for TerminalRenderer {
@@ -26,6 +27,7 @@ impl PixelRenderer for TerminalRenderer {
             should_exit: false,
             show_physics: false,
             start_time: std::time::Instant::now(),
+            render_mode: RenderMode::Braille,
         }
     }
 
@@ -47,8 +49,12 @@ impl PixelRenderer for TerminalRenderer {
         if is_too_small {
             self.draw_error_message(term_w, term_h, &mut stdout)?;
         } else if self.show_physics {
-            // Convert pixel buffer to ASCII and draw
-            self.draw_pixel_buffer_as_ascii(buffer, term_w, term_h, &mut stdout)?;
+            // Convert pixel buffer using current render mode
+            match self.render_mode {
+                RenderMode::Braille => self.draw_pixel_buffer_as_braille(buffer, term_w, term_h, &mut stdout)?,
+                RenderMode::Block => self.draw_pixel_buffer_as_blocks(buffer, term_w, term_h, &mut stdout)?,
+                RenderMode::Ascii => self.draw_pixel_buffer_as_ascii(buffer, term_w, term_h, &mut stdout)?,
+            }
         } else {
             // Show splash screen
             self.draw_splash_screen(term_w, term_h, &mut stdout)?;
@@ -75,6 +81,15 @@ impl PixelRenderer for TerminalRenderer {
                             KeyCode::Char('d') | KeyCode::Right => events.push(InputEvent::ThrustRight),
                             KeyCode::Char(' ') => events.push(InputEvent::ThrustUp),
                             KeyCode::Char('c') => events.push(InputEvent::ThrustDown),
+                            KeyCode::Tab => {
+                                // Toggle render mode
+                                self.render_mode = match self.render_mode {
+                                    RenderMode::Braille => RenderMode::Block,
+                                    RenderMode::Block => RenderMode::Ascii,
+                                    RenderMode::Ascii => RenderMode::Braille,
+                                };
+                                events.push(InputEvent::ToggleRenderMode);
+                            },
                             KeyCode::Char('0') => events.push(InputEvent::Reset),
                             KeyCode::Char('1') => events.push(InputEvent::CameraMode(CameraMode::FirstPerson)),
                             KeyCode::Char('2') => events.push(InputEvent::CameraMode(CameraMode::ThirdPerson)),
@@ -152,6 +167,77 @@ impl TerminalRenderer {
         chars.chars().nth(index).unwrap_or(' ')
     }
 
+    /// Convert pixel buffer to Braille characters (2×4 pixels per char)
+    fn draw_pixel_buffer_as_braille(&self, buffer: &PixelBuffer, term_w: u16, term_h: u16, stdout: &mut std::io::Stdout) -> Result<()> {
+        let left = if term_w as i32 - GRID_W as i32 > 0 {
+            ((term_w as usize - GRID_W) / 2) as u16
+        } else { 0u16 };
+        let top = if term_h as i32 - GRID_H as i32 > 4 {
+            ((term_h as usize - GRID_H) / 2) as u16
+        } else { 2u16 };
+
+        // Fill background with dots
+        for y in 0..term_h {
+            execute!(stdout, cursor::MoveTo(0, y))?;
+            for x in 0..term_w {
+                let in_braille_area = y >= top && y < top + GRID_H as u16 && x >= left && x < left + GRID_W as u16;
+                if in_braille_area {
+                    let braille_x = x - left;
+                    let braille_y = y - top;
+                    let char = self.pixel_buffer_to_braille_char(buffer, braille_x as usize, braille_y as usize);
+                    write!(stdout, "{}", char)?;
+                } else {
+                    write!(stdout, ".")?;
+                }
+            }
+        }
+        stdout.flush()?;
+        Ok(())
+    }
+
+    /// Convert pixel buffer position to Braille character (2×4 pixel sampling)
+    fn pixel_buffer_to_braille_char(&self, buffer: &PixelBuffer, braille_x: usize, braille_y: usize) -> char {
+        // Each Braille character represents 2×4 pixels
+        // Braille pattern:
+        // 1 4
+        // 2 5  
+        // 3 6
+        // 7 8
+        
+        let pixel_start_x = (braille_x as f32 * 2.0 / GRID_W as f32 * buffer.width as f32) as u32;
+        let pixel_start_y = (braille_y as f32 * 4.0 / GRID_H as f32 * buffer.height as f32) as u32;
+        
+        let mut braille_value = 0u8;
+        let braille_bits = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]; // Bit positions
+        
+        // Sample 2×4 pixels
+        for dy in 0..4 {
+            for dx in 0..2 {
+                let px = pixel_start_x + dx;
+                let py = pixel_start_y + dy;
+                
+                if let Some(pixel) = buffer.get_pixel(px, py) {
+                    let brightness = (pixel[0] as f32 * 0.299 + pixel[1] as f32 * 0.587 + pixel[2] as f32 * 0.114) / 255.0;
+                    if brightness > 0.5 { // Threshold for bright pixel
+                        let bit_index = (dy * 2 + dx) as usize;
+                        if bit_index < 8 {
+                            braille_value |= braille_bits[bit_index];
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Convert to Braille Unicode character
+        char::from_u32(0x2800 + braille_value as u32).unwrap_or(' ')
+    }
+
+    /// Convert pixel buffer to block characters with color
+    fn draw_pixel_buffer_as_blocks(&self, buffer: &PixelBuffer, term_w: u16, term_h: u16, stdout: &mut std::io::Stdout) -> Result<()> {
+        // TODO: Implement block character rendering
+        self.draw_pixel_buffer_as_ascii(buffer, term_w, term_h, stdout)
+    }
+
     /// Draw splash screen with version info
     fn draw_splash_screen(&self, term_w: u16, term_h: u16, stdout: &mut std::io::Stdout) -> Result<()> {
         let splash_text = format!("bhumi v{}", env!("CARGO_PKG_VERSION"));
@@ -222,14 +308,16 @@ fn print_raw_grid() -> Result<()> {
         let drone_pos = renderer.get_drone_position();
         println!("=== t={:.1}s - Drone position: x={:.3}m, y={:.3}m, z={:.3}m ===", sim_time, drone_pos[0], drone_pos[1], drone_pos[2]);
         
-        // Convert the actual pixel buffer to ASCII and print it
+        // Show actual Braille rendering of the pixel buffer
+        let terminal_renderer = TerminalRenderer::new();
         for y in 0..GRID_H {
             for x in 0..GRID_W {
-                let char = terminal_renderer.pixel_buffer_to_ascii_char(&renderer.buffer, x, y);
+                let char = terminal_renderer.pixel_buffer_to_braille_char(&renderer.buffer, x, y);
                 print!("{}", char);
             }
             println!();
         }
+        println!();
         println!();
     }
     Ok(())

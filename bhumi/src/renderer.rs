@@ -34,6 +34,7 @@ impl Renderer {
                 InputEvent::ThrustBackward => self.thrust_force.z -= 0.3,  // S/↓ - thrust backward
                 InputEvent::CameraMode(mode) => self.camera.set_mode(*mode),
                 InputEvent::Reset => self.physics.reset_drone(),
+                InputEvent::ToggleRenderMode => {}, // Handled by terminal renderer
                 InputEvent::Exit => {}, // Handled by renderer implementation
             }
         }
@@ -58,15 +59,10 @@ impl Renderer {
         
         // Remove static crosshair to see actual 3D content
         
-        // Debug: just put 4 bright pixels at screen coordinates to test
-        self.buffer.set_pixel(100, 60, [255, 255, 255, 255]);  // Top-left
-        self.buffer.set_pixel(220, 60, [255, 255, 255, 255]);  // Top-right  
-        self.buffer.set_pixel(220, 180, [255, 255, 255, 255]); // Bottom-right
-        self.buffer.set_pixel(100, 180, [255, 255, 255, 255]); // Bottom-left
+        // Render 3D cube wireframe
+        self.render_room(&view_proj);
         
-        // Remove debug markers for clean wireframe view
-        
-        // Force third-person mode for debugging so we can see the drone
+        // Render drone
         self.render_drone(&view_proj);
     }
 
