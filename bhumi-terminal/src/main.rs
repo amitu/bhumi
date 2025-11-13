@@ -9,7 +9,7 @@ use std::io::{Result, Write, stdout};
 use std::time::Duration;
 
 const GRID_W: usize = 80;
-const GRID_H: usize = 40;
+const GRID_H: usize = 30;
 
 fn generate_grid() -> Vec<String> {
     let mut rows: Vec<String> = Vec::with_capacity(GRID_H);
