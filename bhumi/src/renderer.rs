@@ -34,7 +34,7 @@ impl Renderer {
                 InputEvent::ThrustBackward => self.thrust_force.z -= 0.3,  // S/↓ - thrust backward
                 InputEvent::CameraMode(mode) => self.camera.set_mode(*mode),
                 InputEvent::Reset => self.physics.reset_drone(),
-                InputEvent::ToggleRenderMode => {}, // Handled by terminal renderer
+                InputEvent::Stop => self.physics.stop_drone(),
                 InputEvent::Exit => {}, // Handled by renderer implementation
             }
         }
@@ -62,7 +62,7 @@ impl Renderer {
         // Render 3D cube wireframe
         self.render_room(&view_proj);
         
-        // Render drone
+        // Always render drone (visible in third-person view)
         self.render_drone(&view_proj);
     }
 
@@ -117,7 +117,7 @@ impl Renderer {
         }
     }
 
-    /// Render the drone (visible in third-person mode)
+    /// Render the drone as a bright red dot/cross
     fn render_drone(&mut self, view_proj: &nalgebra::Matrix4<f32>) {
         let drone_pos = self.physics.get_drone_position();
         let drone_point = Point3::new(drone_pos[0], drone_pos[1], drone_pos[2]);
@@ -125,13 +125,17 @@ impl Renderer {
         if let Some(screen_pos) = world_to_screen(drone_point, view_proj, self.buffer.width, self.buffer.height) {
             let x = screen_pos.0 as u32;
             let y = screen_pos.1 as u32;
-            let drone_color = [255, 100, 100, 255]; // Red
+            let drone_color = [255, 0, 0, 255]; // Bright red
 
-            // Draw drone as a simple cross
-            let size = 5;
+            // Draw drone as a larger cross for visibility
+            let size = 8; // Bigger size
             if x >= size && y >= size && x + size < self.buffer.width && y + size < self.buffer.height {
+                // Draw cross
                 self.buffer.draw_line(x - size, y, x + size, y, drone_color);
                 self.buffer.draw_line(x, y - size, x, y + size, drone_color);
+                
+                // Draw center dot for extra visibility
+                self.buffer.draw_rect(x.saturating_sub(2), y.saturating_sub(2), 4, 4, drone_color);
             }
         }
     }

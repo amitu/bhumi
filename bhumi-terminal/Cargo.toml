@@ -10,3 +10,5 @@ rust-version.workspace = true
 [dependencies]
 crossterm.workspace = true
 bhumi = { path = "../bhumi" }
+viuer = "0.7"
+image = "0.24"

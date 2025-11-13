@@ -31,17 +31,9 @@ pub enum InputEvent {
     ThrustForward,
     ThrustBackward,
     CameraMode(CameraMode),
-    ToggleRenderMode,
     Reset,
+    Stop,
     Exit,
-}
-
-/// Terminal rendering modes
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RenderMode {
-    Braille,    // 2×4 pixels per char (160×120 effective resolution)
-    Block,      // Block characters with color
-    Ascii,      // Original ASCII brightness conversion
 }
 
 /// Camera viewing modes

@@ -27,14 +27,14 @@ impl PhysicsWorld {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
 
-        // Create drone (dynamic sphere) - start in front of cube
+        // Create drone (dynamic sphere) - start in front of cube with no motion
         let mut rb = RigidBodyBuilder::dynamic()
             .translation(vector![0.0, 0.0, -3.0]) // start 3m in front of cube
-            .linvel(vector![0.0, 0.0, 1.0]) // move toward cube at 1 m/s
+            .linvel(vector![0.0, 0.0, 0.0]) // no initial velocity - motion only via controls
             .build();
-        // set some damping so it doesn't accelerate forever
-        rb.set_linear_damping(0.6);
-        rb.set_angular_damping(0.8);
+        // set high damping for responsive control and easy stopping
+        rb.set_linear_damping(0.9);  // Higher damping for quicker stops
+        rb.set_angular_damping(0.9);
         let drone_handle = bodies.insert(rb);
         let drone_collider = ColliderBuilder::ball(0.35)
             .restitution(0.3)
@@ -117,12 +117,20 @@ impl PhysicsWorld {
         }
     }
 
-    /// Reset drone to starting position and velocity
+    /// Reset drone to starting position and stop all motion
     pub fn reset_drone(&mut self) {
         if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
             rb.set_translation(vector![0.0, 0.0, -3.0], true); // 3m in front of cube
-            rb.set_linvel(vector![0.0, 0.0, 1.0], true);       // 1 m/s toward cube
+            rb.set_linvel(vector![0.0, 0.0, 0.0], true);       // no initial velocity
             rb.set_angvel(vector![0.0, 0.0, 0.0], true);       // no rotation
+        }
+    }
+
+    /// Stop drone motion without changing position
+    pub fn stop_drone(&mut self) {
+        if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
+            rb.set_linvel(vector![0.0, 0.0, 0.0], true);       // stop all velocity
+            rb.set_angvel(vector![0.0, 0.0, 0.0], true);       // stop rotation
         }
     }
 }

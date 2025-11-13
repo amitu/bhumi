@@ -17,9 +17,9 @@ impl Camera {
     /// Create new camera with standard settings
     pub fn new() -> Self {
         Self {
-            mode: CameraMode::FirstPerson, // Default to first-person (camera follows drone)
-            position: Point3::new(0.0, 0.0, -3.0), // Start behind drone
-            target: Point3::new(0.0, 0.0, 0.0),    // Look at cube
+            mode: CameraMode::ThirdPerson, // Camera behind and above drone
+            position: Point3::new(0.0, 0.0, -3.0), // Will be updated relative to drone
+            target: Point3::new(0.0, 0.0, 0.0),    // Will look at drone
             up: Vector3::y(),                       // Y is up
             fov: 60.0_f32.to_radians(),         // 60 degree FOV
             aspect: 320.0 / 240.0,              // 4:3 aspect ratio
@@ -32,21 +32,10 @@ impl Camera {
     pub fn update(&mut self, drone_pos: [f32; 3]) {
         let drone_point = Point3::new(drone_pos[0], drone_pos[1], drone_pos[2]);
 
-        match self.mode {
-            CameraMode::FirstPerson => {
-                // Angled camera to see cube in 3D perspective
-                self.position = Point3::new(-1.5, 1.0, -2.0); // Off to the side and above
-                self.target = Point3::new(0.0, 0.0, 1.0);     // Look at cube
-            },
-            CameraMode::ThirdPerson => {
-                // Camera directly behind drone, looking at cube front-on
-                self.position = Point3::new(0.0, 0.0, -4.0); // Directly behind drone
-                self.target = Point3::new(0.0, 0.0, 0.0);    // Look at cube center
-            },
-            CameraMode::FreeCam => {
-                // Don't update position/target for free camera (user controlled)
-            },
-        }
+        // Third-person camera: behind and above drone, looking at drone
+        let offset = Vector3::new(-1.5, 1.0, -2.0); // Behind, above, and to the side
+        self.position = drone_point + offset;
+        self.target = drone_point; // Look at the drone
     }
 
     /// Get view matrix for current camera
