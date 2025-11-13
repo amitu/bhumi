@@ -1,5 +1,5 @@
 [workspace]
-members = ["bhumi-wgpu", "bhumi-terminal"]
+members = ["bhumi", "bhumi-wgpu", "bhumi-terminal"]
 resolver = "2"
 
 [workspace.package]

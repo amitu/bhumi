@@ -122,12 +122,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "bhumi"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "nalgebra 0.30.1",
+ "rapier3d",
+]
+
+[[package]]
 name = "bhumi-terminal"
 version = "0.0.0"
 dependencies = [
+ "bhumi",
  "crossterm",
- "nalgebra 0.30.1",
- "rapier3d",
 ]
 
 [[package]]
