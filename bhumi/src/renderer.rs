@@ -8,7 +8,15 @@ pub struct Renderer {
     pub camera: Camera,
     pub buffer: PixelBuffer,
     thrust_force: Vector<f32>,
-    angular_force: Vector<f32>, // For pitch/yaw/roll
+    rotation_delta: Vector<f32>, // For direct orientation changes (self-stabilizing)
+    stopping_mode: StoppingMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum StoppingMode {
+    None,           // Normal flight
+    Gentle,         // Gradual passenger-friendly stop
+    Emergency,      // Quick emergency brake
 }
 
 impl Renderer {
@@ -19,7 +27,8 @@ impl Renderer {
             camera: Camera::new(),
             buffer: PixelBuffer::new(),
             thrust_force: Vector::new(0.0, 0.0, 0.0),
-            angular_force: Vector::new(0.0, 0.0, 0.0),
+            rotation_delta: Vector::new(0.0, 0.0, 0.0),
+            stopping_mode: StoppingMode::None,
         }
     }
 
@@ -28,36 +37,83 @@ impl Renderer {
         // Process input events
         for event in input_events {
             match event {
-                // Translation forces (WASD cluster)
-                InputEvent::ThrustForward => self.thrust_force.z += 0.3,   // W - surge forward
-                InputEvent::ThrustBackward => self.thrust_force.z -= 0.3,  // S - surge backward  
-                InputEvent::ThrustLeft => self.thrust_force.x -= 0.3,      // A - sway left
-                InputEvent::ThrustRight => self.thrust_force.x += 0.3,     // D - sway right
-                InputEvent::ThrustUp => self.thrust_force.y += 0.5,        // SPACE - heave up
-                InputEvent::ThrustDown => self.thrust_force.y -= 0.5,      // C - heave down
+                // Translation forces (WASD cluster) - cancel stopping mode
+                InputEvent::ThrustForward => {
+                    self.thrust_force.z += 0.3;   // W - surge forward
+                    self.stopping_mode = StoppingMode::None; // Cancel stopping
+                },
+                InputEvent::ThrustBackward => {
+                    self.thrust_force.z -= 0.3;  // S - surge backward  
+                    self.stopping_mode = StoppingMode::None;
+                },
+                InputEvent::ThrustLeft => {
+                    self.thrust_force.x -= 0.3;      // A - sway left
+                    self.stopping_mode = StoppingMode::None;
+                },
+                InputEvent::ThrustRight => {
+                    self.thrust_force.x += 0.3;     // D - sway right
+                    self.stopping_mode = StoppingMode::None;
+                },
+                InputEvent::ThrustUp => {
+                    self.thrust_force.y += 0.5;        // SPACE - heave up
+                    self.stopping_mode = StoppingMode::None;
+                },
+                InputEvent::ThrustDown => {
+                    self.thrust_force.y -= 0.5;      // C - heave down
+                    self.stopping_mode = StoppingMode::None;
+                },
                 
-                // Rotational torques (IJKL cluster) - very gentle forces for subtle rotation
-                InputEvent::PitchUp => self.angular_force.x -= 0.05,       // I - pitch nose up
-                InputEvent::PitchDown => self.angular_force.x += 0.05,     // K - pitch nose down
-                InputEvent::YawLeft => self.angular_force.y -= 0.05,       // J - yaw turn left
-                InputEvent::YawRight => self.angular_force.y += 0.05,      // L - yaw turn right
-                InputEvent::RollLeft => self.angular_force.z -= 0.05,      // U - roll bank left
-                InputEvent::RollRight => self.angular_force.z += 0.05,     // O - roll bank right
+                // Steering rotation (changes both view and travel direction)
+                InputEvent::SteerPitchUp => self.rotation_delta.x -= 0.02,     // I - pitch and steer
+                InputEvent::SteerPitchDown => self.rotation_delta.x += 0.02,   // K - pitch and steer
+                InputEvent::SteerYawLeft => self.rotation_delta.y -= 0.02,     // J - yaw and steer
+                InputEvent::SteerYawRight => self.rotation_delta.y += 0.02,    // L - yaw and steer
+                InputEvent::SteerRollLeft => self.rotation_delta.z -= 0.02,    // U - roll and steer
+                InputEvent::SteerRollRight => self.rotation_delta.z += 0.02,   // O - roll and steer
+                
+                // Look-around rotation (view only, travel direction unchanged) - TODO: implement
+                InputEvent::LookPitchUp => {}, // Shift+I - look only (not implemented yet)
+                InputEvent::LookPitchDown => {}, 
+                InputEvent::LookYawLeft => {},
+                InputEvent::LookYawRight => {},
+                InputEvent::LookRollLeft => {},
+                InputEvent::LookRollRight => {},
+                InputEvent::ResetLookDirection => {}, // Reset view to travel direction
+                
+                // Stopping modes - set mode for continuous application
+                InputEvent::GentleStop => {
+                    self.stopping_mode = StoppingMode::Gentle;
+                    // Any other thrust input cancels stopping
+                },
+                InputEvent::EmergencyBrake => {
+                    self.stopping_mode = StoppingMode::Emergency;
+                },
                 
                 // Utility
                 InputEvent::CameraMode(mode) => self.camera.set_mode(*mode),
                 InputEvent::Reset => self.physics.reset_drone(),
-                InputEvent::Stop => self.physics.stop_drone(),
                 InputEvent::Exit => {} // Handled by renderer implementation
             }
         }
 
-        // Step physics simulation with both linear and angular forces
-        let drone_pos = self.physics.step_with_torque(dt, self.thrust_force, self.angular_force);
+        // Apply continuous stopping if active
+        match self.stopping_mode {
+            StoppingMode::Gentle => self.physics.gentle_stop(),
+            StoppingMode::Emergency => self.physics.emergency_brake(),
+            StoppingMode::None => {}, // Normal flight
+        }
+        
+        // Apply direct rotation changes (self-stabilizing)
+        if self.rotation_delta.magnitude() > 0.001 {
+            self.physics.apply_rotation_delta(self.rotation_delta);
+        }
 
-        // Reset forces (apply only for this frame)
+        // Step physics simulation with linear forces only
+        let drone_pos = self.physics.step(dt, self.thrust_force);
+
+        // Reset forces and rotation deltas (apply only for this frame)
         self.thrust_force = Vector::new(0.0, 0.0, 0.0);
-        self.angular_force = Vector::new(0.0, 0.0, 0.0);
+        self.rotation_delta = Vector::new(0.0, 0.0, 0.0);
 
         // Update camera based on drone position and orientation
         let drone_rotation = self.physics.get_drone_rotation();

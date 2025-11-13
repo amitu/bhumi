@@ -146,17 +146,50 @@ impl PhysicsWorld {
         }
     }
 
-    /// Stop drone - reset entire physics world but keep drone position
-    pub fn stop_drone(&mut self) {
-        // Get current drone position
-        let current_pos = if let Some(rb) = self.bodies.get(self.drone_handle) {
-            *rb.translation()
-        } else {
-            vector![0.0, 0.0, -3.0]
-        };
+    /// Gentle stop - gradually reduce velocity (passenger-friendly)
+    pub fn gentle_stop(&mut self) {
+        if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
+            let current_vel = *rb.linvel();
+            let current_angvel = *rb.angvel();
+            
+            // More aggressive reduction to overcome damping
+            rb.set_linvel(current_vel * 0.8, true);  // Keep 80% of velocity each frame
+            rb.set_angvel(current_angvel * 0.8, true);
+        }
+    }
 
-        // Recreate entire physics world from scratch
-        *self = Self::new_with_drone_at(current_pos);
+    /// Emergency brake - quickly reduce velocity  
+    pub fn emergency_brake(&mut self) {
+        if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
+            let current_vel = *rb.linvel();
+            let current_angvel = *rb.angvel();
+            
+            // Much faster reduction
+            rb.set_linvel(current_vel * 0.5, true);  // Keep 50% of velocity each frame
+            rb.set_angvel(current_angvel * 0.5, true);
+        }
+    }
+
+    /// Apply direct rotation change to drone (self-stabilizing)
+    pub fn apply_rotation_delta(&mut self, rotation_delta: Vector<f32>) {
+        if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
+            // Get current rotation
+            let current_quat = *rb.rotation();
+            
+            // Convert rotation delta to quaternion rotation
+            let delta_quat = nalgebra::UnitQuaternion::from_euler_angles(
+                rotation_delta.x, // pitch
+                rotation_delta.y, // yaw  
+                rotation_delta.z, // roll
+            );
+            
+            // Apply the rotation delta
+            let new_rotation = delta_quat * current_quat;
+            rb.set_rotation(new_rotation, true);
+            
+            // Stop any existing angular velocity for stability
+            rb.set_angvel(vector![0.0, 0.0, 0.0], true);
+        }
     }
 
     /// Create new physics world with drone at specific position

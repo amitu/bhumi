@@ -32,18 +32,30 @@ pub enum InputEvent {
     ThrustUp,        // SPACE - Heave up
     ThrustDown,      // C - Heave down
     
-    // Rotation (IJKL cluster)
-    PitchUp,         // I - Nose up
-    PitchDown,       // K - Nose down
-    YawLeft,         // J - Turn left
-    YawRight,        // L - Turn right
-    RollLeft,        // U - Bank left
-    RollRight,       // O - Bank right
+    // Rotation modes (IJKL cluster with shift modifier)
+    SteerPitchUp,    // I - Nose up + change travel direction
+    SteerPitchDown,  // K - Nose down + change travel direction
+    SteerYawLeft,    // J - Turn left + change travel direction
+    SteerYawRight,   // L - Turn right + change travel direction
+    SteerRollLeft,   // U - Bank left + change travel direction
+    SteerRollRight,  // O - Bank right + change travel direction
+    
+    LookPitchUp,     // Shift+I - Look up only
+    LookPitchDown,   // Shift+K - Look down only
+    LookYawLeft,     // Shift+J - Look left only
+    LookYawRight,    // Shift+L - Look right only
+    LookRollLeft,    // Shift+U - Look roll left only
+    LookRollRight,   // Shift+O - Look roll right only
+    
+    ResetLookDirection, // Release shift - reset view to travel direction
+    
+    // Stopping modes
+    GentleStop,      // 9 - Gradual passenger-friendly stop
+    EmergencyBrake,  // Shift+9 - Quick emergency brake
     
     // Utility
     CameraMode(CameraMode),
     Reset,
-    Stop,
     Exit,
 }
 

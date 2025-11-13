@@ -20,6 +20,7 @@ struct TerminalRenderer {
     frame_count: u32,
     render_mode: ViuerMode,
     last_buffer_hash: u64,
+    shift_pressed: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -46,6 +47,7 @@ impl PixelRenderer for TerminalRenderer {
             frame_count: 0,
             render_mode: ViuerMode::Auto,
             last_buffer_hash: 0,
+            shift_pressed: false,
         }
     }
 
@@ -80,6 +82,16 @@ impl PixelRenderer for TerminalRenderer {
             if let Ok(event) = event::read() {
                 match event {
                     Event::Key(k) => {
+                        // Track shift key state
+                        use crossterm::event::KeyModifiers;
+                        let shift_held = k.modifiers.contains(KeyModifiers::SHIFT);
+                        
+                        // Detect shift release for view reset
+                        if self.shift_pressed && !shift_held {
+                            events.push(InputEvent::ResetLookDirection);
+                        }
+                        self.shift_pressed = shift_held;
+                        
                         match k.code {
                             KeyCode::Char('q') | KeyCode::Esc => {
                                 self.should_exit = true;
@@ -93,13 +105,49 @@ impl PixelRenderer for TerminalRenderer {
                             KeyCode::Char(' ') => events.push(InputEvent::ThrustUp),       // Heave up
                             KeyCode::Char('c') => events.push(InputEvent::ThrustDown),     // Heave down
                             
-                            // Rotation controls (IJKL cluster - right hand)  
-                            KeyCode::Char('i') => events.push(InputEvent::PitchUp),        // Nose up
-                            KeyCode::Char('k') => events.push(InputEvent::PitchDown),      // Nose down
-                            KeyCode::Char('j') => events.push(InputEvent::YawLeft),        // Turn left
-                            KeyCode::Char('l') => events.push(InputEvent::YawRight),       // Turn right
-                            KeyCode::Char('u') => events.push(InputEvent::RollLeft),       // Bank left
-                            KeyCode::Char('o') => events.push(InputEvent::RollRight),      // Bank right
+                            // Rotation controls (IJKL cluster) - behavior depends on shift
+                            KeyCode::Char('i') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookPitchUp);   // Shift+I - look only
+                                } else {
+                                    events.push(InputEvent::SteerPitchUp);  // I - steer and look
+                                }
+                            },
+                            KeyCode::Char('k') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookPitchDown);
+                                } else {
+                                    events.push(InputEvent::SteerPitchDown);
+                                }
+                            },
+                            KeyCode::Char('j') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookYawLeft);
+                                } else {
+                                    events.push(InputEvent::SteerYawLeft);
+                                }
+                            },
+                            KeyCode::Char('l') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookYawRight);
+                                } else {
+                                    events.push(InputEvent::SteerYawRight);
+                                }
+                            },
+                            KeyCode::Char('u') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookRollLeft);
+                                } else {
+                                    events.push(InputEvent::SteerRollLeft);
+                                }
+                            },
+                            KeyCode::Char('o') => {
+                                if shift_held {
+                                    events.push(InputEvent::LookRollRight);
+                                } else {
+                                    events.push(InputEvent::SteerRollRight);
+                                }
+                            },
                             KeyCode::Tab => {
                                 // Toggle viuer rendering mode
                                 self.render_mode = match self.render_mode {
@@ -113,7 +161,13 @@ impl PixelRenderer for TerminalRenderer {
                                 ));
                             }
                             KeyCode::Char('0') => events.push(InputEvent::Reset),
-                            KeyCode::Char('9') => events.push(InputEvent::Stop),
+                            KeyCode::Char('9') => {
+                                if shift_held {
+                                    events.push(InputEvent::EmergencyBrake);  // Shift+9 - emergency brake
+                                } else {
+                                    events.push(InputEvent::GentleStop);      // 9 - gentle stop
+                                }
+                            },
                             _ => {}
                         }
                     }
@@ -630,9 +684,12 @@ fn main() -> Result<()> {
         // Log input events (especially rotation)
         if !input_events.is_empty() {
             let has_rotation = input_events.iter().any(|e| matches!(e, 
-                InputEvent::PitchUp | InputEvent::PitchDown | 
-                InputEvent::YawLeft | InputEvent::YawRight |
-                InputEvent::RollLeft | InputEvent::RollRight));
+                InputEvent::SteerPitchUp | InputEvent::SteerPitchDown | 
+                InputEvent::SteerYawLeft | InputEvent::SteerYawRight |
+                InputEvent::SteerRollLeft | InputEvent::SteerRollRight |
+                InputEvent::LookPitchUp | InputEvent::LookPitchDown |
+                InputEvent::LookYawLeft | InputEvent::LookYawRight |
+                InputEvent::LookRollLeft | InputEvent::LookRollRight));
             
             if has_rotation {
                 terminal_renderer.log(&format!("🔄 ROTATION INPUT: {:?}", input_events));
