@@ -197,9 +197,8 @@ impl TerminalRenderer {
 fn run_visual_test() -> Result<()> {
     terminal::enable_raw_mode()?;
     
-    // Create a simple test renderer with cube  
+    // Create test images that look different for each protocol
     let mut renderer = Renderer::new();
-    renderer.render(); // Generate the first frame
     
     // Track which modes work for summary
     let mut mode_results: Vec<(String, bool, String)> = Vec::new();
@@ -266,33 +265,48 @@ fn run_visual_test() -> Result<()> {
         // Clear screen
         print!("\x1b[2J\x1b[H");
         
+        // Clear previous results to avoid accumulation bug
+        if mode_results.len() > current_mode {
+            mode_results.truncate(current_mode);
+        }
+        
         let (name, config) = &test_configs[current_mode];
         
-        // Show ONE LINE at top, then render image below
-        let detected = if name.contains("Auto") {
-            let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
-            if term_program.contains("Apple_Terminal") {
-                "Block Characters"
-            } else if term_program.contains("iTerm") {
-                "iTerm2 Graphics"
-            } else {
-                "Block Characters"
-            }
-        } else {
-            ""
+        // Pre-check if protocol is actually supported by this terminal
+        let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
+        let term = std::env::var("TERM").unwrap_or_default();
+        
+        let actually_supported = match name {
+            n if n.contains("Kitty") => term.contains("kitty") || term_program.contains("kitty"),
+            n if n.contains("iTerm2") => term_program.contains("iTerm"),
+            n if n.contains("Sixel") => {
+                // Very few terminals actually support Sixel
+                term.contains("mlterm") || term.contains("xterm") && !term_program.contains("Apple_Terminal")
+            },
+            _ => true, // Auto and Block modes should work everywhere
         };
         
-        println!("Mode {}/{}: {} {} | ←→ S=summary Q=quit", current_mode + 1, test_configs.len(), name, detected);
-        
-        // Render image below the line
-        match viuer::print(&dynamic_image, config) {
-            Ok((w, h)) => {
-                mode_results.push((name.to_string(), true, format!("{}×{}", w, h)));
-            },
-            Err(e) => {
-                mode_results.push((name.to_string(), false, e.to_string()));
+        let status = if actually_supported {
+            println!("Mode {}/{}: {} | ←→ S=summary Q=quit", current_mode + 1, test_configs.len(), name);
+            renderer.render(); // Fresh render for each test
+            let rgba_bytes: Vec<u8> = renderer.buffer.pixels.iter()
+                .flat_map(|pixel| [pixel[0], pixel[1], pixel[2], pixel[3]])
+                .collect();
+            if let Some(rgba_image) = RgbaImage::from_raw(renderer.buffer.width, renderer.buffer.height, rgba_bytes) {
+                let dynamic_image = DynamicImage::ImageRgba8(rgba_image);
+                match viuer::print(&dynamic_image, config) {
+                    Ok((w, h)) => {
+                        mode_results.push((name.to_string(), true, format!("{}×{}", w, h)));
+                    },
+                    Err(e) => {
+                        mode_results.push((name.to_string(), false, e.to_string()));
+                    }
+                }
             }
-        }
+        } else {
+            println!("Mode {}/{}: {} SKIPPED (Terminal doesn't support) | ←→ S=summary Q=quit", current_mode + 1, test_configs.len(), name);
+            mode_results.push((name.to_string(), false, "Not supported by terminal".to_string()));
+        };
         
         // Wait for input
         loop {
@@ -321,10 +335,10 @@ fn run_visual_test() -> Result<()> {
                         // Show final summary before exit
                         print!("\x1b[2J\x1b[H");
                         show_summary(&mode_results, &test_configs);
-                        execute!(std::io::stdout(), cursor::MoveTo(0, (test_configs.len() + 4) as u16)).ok();
+                        execute!(std::io::stdout(), cursor::MoveTo(0, (test_configs.len() + 5) as u16)).ok();
                         print!("Exiting...");
                         std::io::stdout().flush().ok();
-                        std::thread::sleep(Duration::from_secs(1));
+                        execute!(std::io::stdout(), cursor::MoveTo(0, (test_configs.len() + 6) as u16)).ok();
                         terminal::disable_raw_mode()?;
                         return Ok(());
                     },
