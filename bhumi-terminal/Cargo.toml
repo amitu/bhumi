@@ -12,3 +12,4 @@ crossterm.workspace = true
 bhumi = { path = "../bhumi" }
 viuer = { version = "0.7", features = ["sixel"] }
 image = "0.24"
+gilrs = "0.10"

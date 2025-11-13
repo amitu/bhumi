@@ -21,6 +21,7 @@ struct TerminalRenderer {
     render_mode: ViuerMode,
     last_buffer_hash: u64,
     shift_pressed: bool,
+    gilrs: gilrs::Gilrs,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -48,6 +49,7 @@ impl PixelRenderer for TerminalRenderer {
             render_mode: ViuerMode::Auto,
             last_buffer_hash: 0,
             shift_pressed: false,
+            gilrs: gilrs::Gilrs::new().expect("Failed to initialize gamepad"),
         }
     }
 
@@ -77,6 +79,9 @@ impl PixelRenderer for TerminalRenderer {
 
     fn handle_input(&mut self) -> Vec<InputEvent> {
         let mut events = Vec::new();
+        
+        // Check for gamepad events first
+        self.handle_gamepad_input(&mut events);
 
         if event::poll(Duration::from_millis(16)).unwrap_or(false) {
             if let Ok(event) = event::read() {
@@ -194,6 +199,86 @@ impl TerminalRenderer {
             .as_millis();
         writeln!(self.log_file, "[{}] {}", timestamp, message).ok();
         self.log_file.flush().ok();
+    }
+
+    /// Handle gamepad input (Steam Deck / controller support)
+    fn handle_gamepad_input(&mut self, events: &mut Vec<InputEvent>) {
+        // Poll gamepad events
+        while let Some(gilrs::Event { id, event, time: _ }) = self.gilrs.next_event() {
+            self.log(&format!("Gamepad {} event: {:?}", id, event));
+        }
+        
+        // Check analog sticks and triggers for continuous input
+        for (_id, gamepad) in self.gilrs.gamepads() {
+            if !gamepad.is_connected() {
+                continue;
+            }
+            
+            // Left stick - Translation (like WASD)
+            let left_x = gamepad.value(gilrs::Axis::LeftStickX);
+            let left_y = gamepad.value(gilrs::Axis::LeftStickY);
+            
+            // Right stick - Rotation (like IJKL)
+            let right_x = gamepad.value(gilrs::Axis::RightStickX);
+            let right_y = gamepad.value(gilrs::Axis::RightStickY);
+            
+            // Triggers - Up/down movement
+            let left_trigger = gamepad.value(gilrs::Axis::LeftZ);   // Descend
+            let right_trigger = gamepad.value(gilrs::Axis::RightZ); // Ascend
+            
+            const DEADZONE: f32 = 0.2;
+            
+            // Left stick → Translation
+            if left_x.abs() > DEADZONE {
+                if left_x > 0.0 {
+                    events.push(InputEvent::ThrustRight);  // Right
+                } else {
+                    events.push(InputEvent::ThrustLeft);   // Left
+                }
+            }
+            if left_y.abs() > DEADZONE {
+                if left_y > 0.0 {
+                    events.push(InputEvent::ThrustForward);   // Forward
+                } else {
+                    events.push(InputEvent::ThrustBackward);  // Backward
+                }
+            }
+            
+            // Right stick → Rotation (steering mode)
+            if right_x.abs() > DEADZONE {
+                if right_x > 0.0 {
+                    events.push(InputEvent::SteerYawRight);  // Turn right
+                } else {
+                    events.push(InputEvent::SteerYawLeft);   // Turn left
+                }
+            }
+            if right_y.abs() > DEADZONE {
+                if right_y > 0.0 {
+                    events.push(InputEvent::SteerPitchUp);   // Pitch up
+                } else {
+                    events.push(InputEvent::SteerPitchDown); // Pitch down
+                }
+            }
+            
+            // Triggers → Vertical movement
+            if left_trigger > DEADZONE {
+                events.push(InputEvent::ThrustDown);  // L2 - descend
+            }
+            if right_trigger > DEADZONE {
+                events.push(InputEvent::ThrustUp);    // R2 - ascend
+            }
+            
+            // Face buttons
+            if gamepad.is_pressed(gilrs::Button::South) {  // A/X button
+                events.push(InputEvent::GentleStop);
+            }
+            if gamepad.is_pressed(gilrs::Button::East) {   // B/Circle button  
+                events.push(InputEvent::EmergencyBrake);
+            }
+            if gamepad.is_pressed(gilrs::Button::West) {   // X/Square button
+                events.push(InputEvent::Reset);
+            }
+        }
     }
 
     /// Simple hash of pixel buffer to detect changes
