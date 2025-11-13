@@ -33,7 +33,7 @@ impl PhysicsWorld {
             .linvel(vector![0.0, 0.0, 0.0]) // no initial velocity - motion only via controls
             .build();
         // set high damping for responsive control and easy stopping
-        rb.set_linear_damping(0.9);  // Higher damping for quicker stops
+        rb.set_linear_damping(0.9); // Higher damping for quicker stops
         rb.set_angular_damping(0.9);
         let drone_handle = bodies.insert(rb);
         let drone_collider = ColliderBuilder::ball(0.35)
@@ -47,7 +47,10 @@ impl PhysicsWorld {
 
         Self {
             gravity,
-            integration_parameters: IntegrationParameters { dt: 1.0 / 60.0, ..Default::default() },
+            integration_parameters: IntegrationParameters {
+                dt: 1.0 / 60.0,
+                ..Default::default()
+            },
             pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(),
             broad_phase: BroadPhaseBvh::new(),
@@ -121,8 +124,8 @@ impl PhysicsWorld {
     pub fn reset_drone(&mut self) {
         if let Some(rb) = self.bodies.get_mut(self.drone_handle) {
             rb.set_translation(vector![0.0, 0.0, -3.0], true); // 3m in front of cube
-            rb.set_linvel(vector![0.0, 0.0, 0.0], true);       // no initial velocity
-            rb.set_angvel(vector![0.0, 0.0, 0.0], true);       // no rotation
+            rb.set_linvel(vector![0.0, 0.0, 0.0], true); // no initial velocity
+            rb.set_angvel(vector![0.0, 0.0, 0.0], true); // no rotation
         }
     }
 
@@ -165,7 +168,10 @@ impl PhysicsWorld {
 
         Self {
             gravity,
-            integration_parameters: IntegrationParameters { dt: 1.0 / 60.0, ..Default::default() },
+            integration_parameters: IntegrationParameters {
+                dt: 1.0 / 60.0,
+                ..Default::default()
+            },
             pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(),
             broad_phase: BroadPhaseBvh::new(),

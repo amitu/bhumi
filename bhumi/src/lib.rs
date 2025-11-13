@@ -1,14 +1,14 @@
 // Bhumi 3D Engine - Core library
 // Provides 3D graphics engine with modular renderer backends
 
-pub mod pixel_buffer;
 pub mod camera;
 pub mod physics;
+pub mod pixel_buffer;
 pub mod renderer;
 
-pub use pixel_buffer::*;
 pub use camera::*;
 pub use physics::*;
+pub use pixel_buffer::*;
 pub use renderer::*;
 
 use std::io::Result;
@@ -39,7 +39,7 @@ pub enum InputEvent {
 /// Camera viewing modes
 #[derive(Debug, Clone, Copy)]
 pub enum CameraMode {
-    FirstPerson,  // Inside drone cockpit
-    ThirdPerson,  // Behind/above drone
-    FreeCam,      // User-controlled camera
+    FirstPerson, // Inside drone cockpit
+    ThirdPerson, // Behind/above drone
+    FreeCam,     // User-controlled camera
 }

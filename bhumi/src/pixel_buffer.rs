@@ -58,15 +58,17 @@ impl PixelBuffer {
         let sx = if x0 < x1 { 1 } else { -1 };
         let sy = if y0 < y1 { 1 } else { -1 };
         let mut err = dx - dy;
-        
+
         let mut x = x0 as i32;
         let mut y = y0 as i32;
-        
+
         loop {
             self.set_pixel(x as u32, y as u32, color);
-            
-            if x == x1 as i32 && y == y1 as i32 { break; }
-            
+
+            if x == x1 as i32 && y == y1 as i32 {
+                break;
+            }
+
             let e2 = 2 * err;
             if e2 > -dy {
                 err -= dy;

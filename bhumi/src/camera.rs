@@ -1,5 +1,5 @@
-use nalgebra::{Matrix4, Point3, Vector3};
 use crate::CameraMode;
+use nalgebra::{Matrix4, Point3, Vector3};
 
 /// 3D camera for rendering world from different perspectives
 pub struct Camera {
@@ -7,24 +7,24 @@ pub struct Camera {
     pub position: Point3<f32>,
     pub target: Point3<f32>,
     pub up: Vector3<f32>,
-    pub fov: f32,       // Field of view in radians
-    pub aspect: f32,    // Width / height
-    pub near: f32,      // Near clipping plane
-    pub far: f32,       // Far clipping plane
+    pub fov: f32,    // Field of view in radians
+    pub aspect: f32, // Width / height
+    pub near: f32,   // Near clipping plane
+    pub far: f32,    // Far clipping plane
 }
 
 impl Camera {
     /// Create new camera with standard settings
     pub fn new() -> Self {
         Self {
-            mode: CameraMode::ThirdPerson, // Camera behind and above drone
+            mode: CameraMode::ThirdPerson,         // Camera behind and above drone
             position: Point3::new(0.0, 0.0, -3.0), // Will be updated relative to drone
             target: Point3::new(0.0, 0.0, 0.0),    // Will look at drone
-            up: Vector3::y(),                       // Y is up
-            fov: 60.0_f32.to_radians(),         // 60 degree FOV
-            aspect: 320.0 / 240.0,              // 4:3 aspect ratio
-            near: 0.1,                          // 10cm near plane
-            far: 100.0,                         // 100m far plane
+            up: Vector3::y(),                      // Y is up
+            fov: 60.0_f32.to_radians(),            // 60 degree FOV
+            aspect: 320.0 / 240.0,                 // 4:3 aspect ratio
+            near: 0.1,                             // 10cm near plane
+            far: 100.0,                            // 100m far plane
         }
     }
 
