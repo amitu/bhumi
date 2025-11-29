@@ -1,15 +1,17 @@
 [package]
-name = "bhumi-wgpu"
+name = "bhumi-gui"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
-description = "bhumi ui built using GPU / windows etc"
+description = "bhumi GUI renderer with GPU acceleration"
 repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-winit.workspace = true
-pixels.workspace = true
-bhumi = { path = "../bhumi" }
+winit = "0.30"
+pixels = "0.15"
 env_logger = "0.10"
 log = "0.4"
+bhumi = { path = "../bhumi" }
+gilrs = "0.10"
+rapier3d = "0.30"
