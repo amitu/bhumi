@@ -1,0 +1,30 @@
+[package]
+name = "bhumi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+winit.workspace = true
+wgpu.workspace = true
+env_logger.workspace = true
+pollster.workspace = true
+anyhow.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wgpu = { version = "27.0.0", features = ["webgl"]}
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3.69", features = [
+    "Document",
+    "Window",
+    "Element",
+]}
