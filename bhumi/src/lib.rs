@@ -55,12 +55,11 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let num_joysticks = game_controller_subsystem.num_joysticks().unwrap_or(0);
-            println!("Found {} joystick(s)", num_joysticks);
+            println!("Found {num_joysticks} joystick(s)");
             for i in 0..num_joysticks {
                 if game_controller_subsystem.is_game_controller(i) {
                     println!(
-                        "  Controller {}: {}",
-                        i,
+                        "  Controller {i}: {}",
                         game_controller_subsystem
                             .name_for_index(i)
                             .unwrap_or_else(|_| "Unknown".to_string())
@@ -184,29 +183,29 @@ impl winit::application::ApplicationHandler<State> for App {
         for event in event_pump.poll_iter() {
             match event {
                 sdl2::event::Event::ControllerDeviceAdded { which, .. } => {
-                    println!("Controller {} connected", which);
+                    println!("Controller {which} connected");
                     if let Ok(controller) = self.game_controller_subsystem.open(which) {
                         println!("  Opened: {}", controller.name());
                         self.controllers.insert(which, controller);
                     }
                 }
                 sdl2::event::Event::ControllerDeviceRemoved { which, .. } => {
-                    println!("Controller {} disconnected", which);
+                    println!("Controller {which} disconnected");
                     self.controllers.remove(&which);
                 }
                 sdl2::event::Event::ControllerButtonDown { which, button, .. } => {
-                    println!("Controller {} button {:?} pressed", which, button);
+                    println!("Controller {which} button {button:?} pressed");
                 }
                 sdl2::event::Event::ControllerButtonUp { which, button, .. } => {
-                    println!("Controller {} button {:?} released", which, button);
+                    println!("Controller {which} button {button:?} released");
                 }
                 sdl2::event::Event::ControllerAxisMotion {
                     which, axis, value, ..
                 } => {
-                    // Only print significant axis movements (deadzone)
-                    // Use i32 to avoid overflow when value is i16::MIN (-32768)
+                    // Only print significant axis movements (dead-zone)
+                    // Use i32 to avoid overflow when the value is i16::MIN(-32768).
                     if (value as i32).abs() > 8000 {
-                        println!("Controller {} axis {:?}: {}", which, axis, value);
+                        println!("Controller {which} axis {axis:?}: {value}");
                     }
                 }
                 _ => {}
