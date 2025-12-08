@@ -178,40 +178,38 @@ impl winit::application::ApplicationHandler<State> for App {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let mut event_pump = self.sdl_context.event_pump().unwrap();
-            for event in event_pump.poll_iter() {
-                match event {
-                    sdl2::event::Event::ControllerDeviceAdded { which, .. } => {
-                        println!("Controller {} connected", which);
-                        if let Ok(controller) = self.game_controller_subsystem.open(which) {
-                            println!("  Opened: {}", controller.name());
-                            self.controllers.insert(which, controller);
-                        }
+        let mut event_pump = self.sdl_context.event_pump().unwrap();
+        for event in event_pump.poll_iter() {
+            match event {
+                sdl2::event::Event::ControllerDeviceAdded { which, .. } => {
+                    println!("Controller {} connected", which);
+                    if let Ok(controller) = self.game_controller_subsystem.open(which) {
+                        println!("  Opened: {}", controller.name());
+                        self.controllers.insert(which, controller);
                     }
-                    sdl2::event::Event::ControllerDeviceRemoved { which, .. } => {
-                        println!("Controller {} disconnected", which);
-                        self.controllers.remove(&which);
-                    }
-                    sdl2::event::Event::ControllerButtonDown { which, button, .. } => {
-                        println!("Controller {} button {:?} pressed", which, button);
-                    }
-                    sdl2::event::Event::ControllerButtonUp { which, button, .. } => {
-                        println!("Controller {} button {:?} released", which, button);
-                    }
-                    sdl2::event::Event::ControllerAxisMotion {
-                        which, axis, value, ..
-                    } => {
-                        // Only print significant axis movements (deadzone)
-                        // Use i32 to avoid overflow when value is i16::MIN (-32768)
-                        if (value as i32).abs() > 8000 {
-                            println!("Controller {} axis {:?}: {}", which, axis, value);
-                        }
-                    }
-                    _ => {}
                 }
+                sdl2::event::Event::ControllerDeviceRemoved { which, .. } => {
+                    println!("Controller {} disconnected", which);
+                    self.controllers.remove(&which);
+                }
+                sdl2::event::Event::ControllerButtonDown { which, button, .. } => {
+                    println!("Controller {} button {:?} pressed", which, button);
+                }
+                sdl2::event::Event::ControllerButtonUp { which, button, .. } => {
+                    println!("Controller {} button {:?} released", which, button);
+                }
+                sdl2::event::Event::ControllerAxisMotion {
+                    which, axis, value, ..
+                } => {
+                    // Only print significant axis movements (deadzone)
+                    // Use i32 to avoid overflow when value is i16::MIN (-32768)
+                    if (value as i32).abs() > 8000 {
+                        println!("Controller {} axis {:?}: {}", which, axis, value);
+                    }
+                }
+                _ => {}
             }
         }
     }
