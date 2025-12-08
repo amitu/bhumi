@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>🚀 Bhumi 3D - Web Flight Simulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: white;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            background: #141e1e;
+            image-rendering: pixelated;
+            width: 640px;
+            height: 480px;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 640px;
+        }
+        
+        .gamepad-status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #222;
+            border-radius: 5px;
+        }
+        
+        .connected { color: #4CAF50; }
+        .disconnected { color: #f44336; }
+        
+        @media (max-width: 680px) {
+            #gameCanvas {
+                width: 320px;
+                height: 240px;
+            }
+            .controls {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Bhumi 3D Flight Simulator</h1>
+    <p>Fly through infinite wireframe space with 6DOF controls</p>
+    
+    <canvas id="gameCanvas" width="320" height="240"></canvas>
+    
+    <div class="controls">
+        <h3>🎮 Controls</h3>
+        <p><strong>WASD:</strong> Fly (Forward/Back/Left/Right)</p>
+        <p><strong>IJKL:</strong> Rotate (Pitch/Yaw)</p>
+        <p><strong>SPACE/C:</strong> Up/Down</p>
+        <p><strong>0:</strong> Reset | <strong>9:</strong> Stop</p>
+        
+        <div class="gamepad-status">
+            <strong>🎮 EvoFox Controller:</strong> <span id="gamepadStatus" class="disconnected">Disconnected</span>
+            <br><small>Left stick: Move | Right stick: Look | A: Stop | X: Reset</small>
+        </div>
+    </div>
+    
+    <script type="module">
+        import init, { BhumiWeb } from './pkg/bhumi_web.js';
+        
+        async function run() {
+            // Initialize WASM
+            await init();
+            
+            // Create Bhumi instance
+            const bhumi = new BhumiWeb();
+            
+            // Initialize canvas
+            bhumi.init_canvas('gameCanvas');
+            
+            console.log('🚀 Bhumi Web initialized');
+            
+            // Gamepad detection
+            let gamepadConnected = false;
+            
+            function updateGamepadStatus() {
+                const gamepads = navigator.getGamepads();
+                const hasGamepad = Array.from(gamepads).some(gp => gp && gp.connected);
+                
+                if (hasGamepad !== gamepadConnected) {
+                    gamepadConnected = hasGamepad;
+                    const status = document.getElementById('gamepadStatus');
+                    if (hasGamepad) {
+                        status.textContent = 'Connected (EvoFox One detected!)';
+                        status.className = 'connected';
+                    } else {
+                        status.textContent = 'Disconnected';
+                        status.className = 'disconnected';
+                    }
+                }
+            }
+            
+            // Keyboard input
+            document.addEventListener('keydown', (e) => {
+                e.preventDefault();
+                bhumi.handle_key_down(e.code);
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                e.preventDefault();
+                bhumi.handle_key_up(e.code);
+            });
+            
+            // Main game loop
+            function gameLoop(timestamp) {
+                // Update gamepad status
+                updateGamepadStatus();
+                
+                // Update physics and render
+                bhumi.update(timestamp);
+                bhumi.render();
+                
+                requestAnimationFrame(gameLoop);
+            }
+            
+            // Start the game loop
+            requestAnimationFrame(gameLoop);
+            
+            console.log('🎮 Game loop started - ready for EvoFox controller!');
+        }
+        
+        run().catch(console.error);
+    </script>
+</body>
+</html>

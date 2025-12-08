@@ -1,4 +1,4 @@
-# bhumi - general purpose 3D operating system
+# 🚧 (unreleased alpha stage software) bhumi — a spatial operating system 🚧
 
 So I am building a 3D like thing, its actually sort of operating system and 
 not really a game, but the paradigm is a drone instead of a cursor, which is 

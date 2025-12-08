@@ -1,5 +1,5 @@
 [workspace]
-members = ["bhumi", "bhumi-gui", "bhumi-terminal"]
+members = ["bhumi", "bhumi-gui", "bhumi-terminal", "bhumi-web"]
 resolver = "2"
 
 [workspace.package]
