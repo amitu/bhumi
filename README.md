@@ -1,3 +1,5 @@
+Pre Archive Note: Dev moved to https://github.com/fastn-stack/spatial and https://github.com/amitu/spatial
+
 # 🚧 (unreleased alpha stage software) bhumi — a spatial operating system 🚧
 
 So I am building a 3D like thing, its actually sort of operating system and 
